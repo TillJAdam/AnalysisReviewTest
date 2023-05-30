@@ -1,0 +1,479 @@
+---
+title: "Sys_review"
+author: "Charlotte Meinke"
+date: "1/16/2023"
+output: 
+  html_document:
+      df_print: paged
+      number_sections: yes
+      code_folding: hide
+      fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(plotly)
+library(ggplot2)
+library(knitr)
+library(ggbeeswarm)
+
+# Generell settings for ggplot
+library(extrafont)
+#font_import()
+#loadfonts(device = "win")
+text_size = 10
+theme_set(theme_bw() + theme(text = element_text(size =text_size, family = "sans"),
+                             axis.title = element_text(size =text_size, family = "sans"), plot.title = element_text(size = text_size, family = "sans"),
+                             axis.text = element_text(size = text_size, family = "sans"),
+                             legend.text =  element_text(size =text_size-1, family = "sans")))
+## Set default for geom_text
+update_geom_defaults("text", list(size = 4))
+
+size_circle = 2.8
+library(RColorBrewer)
+col <- brewer.pal(4, "Set1")
+```
+
+# Import data
+```{r import}
+library(readxl)
+data_table <-
+  readxl::read_excel(path = "Summary_TR_predictions_with_rs.xlsx", sheet = "RQ0_table")
+data_acc <-
+  readxl::read_excel(path = "Summary_TR_predictions_with_rs.xlsx", sheet = "RQ1_acc")
+data_imp_features <-
+  readxl::read_excel(path = "Summary_TR_predictions_with_rs.xlsx", sheet = "RQ2_Important_features", na = "NA")
+data_dimreduction <-
+  readxl::read_excel(path = "Summary_TR_predictions_with_rs.xlsx", sheet = "RQ3_reducing")
+data_PROBAST <- readxl::read_excel(path = "PROBAST_assessment.xlsx", sheet = "Main")
+colnames(data_PROBAST) <- data_PROBAST[1,]
+data_PROBAST <- data_PROBAST[2:14,]
+
+# Change spaces in column names for all columns into _
+colnames(data_acc) <- gsub(" ","_",colnames(data_acc))
+colnames(data_imp_features) <- gsub(" - ","_",colnames(data_imp_features))
+colnames(data_imp_features) <- gsub(" ","_",colnames(data_imp_features))
+colnames(data_dimreduction) <- gsub(" ","_",colnames(data_dimreduction))
+```
+
+# RQ 0: Table with important information
+## Keep only important information
+```{r RQ0}
+library(DT)
+library(rempsyc)
+library(officer)
+library(flextable)
+
+# Column Responders/nonresponders
+data_table$`Responders/nonresponders` <- gsub(" responders, ","/",data_table$`Responders/nonresponders`)
+data_table$`Responders/nonresponders` <- gsub(" nonresponders","",data_table$`Responders/nonresponders`)
+data_table$`Responders/nonresponders` <- gsub(" remitters, ","/",data_table$`Responders/nonresponders`)
+data_table$`Responders/nonresponders` <- gsub(" nonremitters","",data_table$`Responders/nonresponders`)
+
+# Column treatment
+data_table$Treatment <- gsub("atypical antipsychotics","AAP",data_table$Treatment)
+#data_table$treatment <- gsub("Alpha2-receptor-antagonists","AAP",data_table$treatment)
+
+# Column models
+data_table$`Information on models tested` <- gsub(" of models tested","",data_table$`Information on models tested`)
+
+# Columns definition of treatment outcome
+data_table$`Definition of treatment outcome` <- gsub("\\s*\\([^\\)]+\\)","",data_table$`Definition of treatment outcome`)
+
+# Column: Input features
+data_table$`Type of functional-connectivity-based input features` <- gsub("[(]wb:.*)","",data_table$`Type of functional-connectivity-based input features`)
+
+# Column: FC estimation
+data_table$`Way of estimating the underlying functional connectivities`<- gsub("Group-information guided","Gig",data_table$`Way of estimating the underlying functional connectivities`)
+
+# Column: Algorithms
+data_table$`Algorithm(s) of the final classifier(s)`<- gsub("graph convolutional network","GCN",data_table$`Algorithm(s) of the final classifier(s)`)
+
+# # Combine columns author and first year
+# data_table$`First author, year` <- paste(data_table$`First author`,data_table$Year, sep = ", ")
+# # Delete every thing after second comma 
+# data_table$`First author, year` <- gsub(",.*,",",",data_table$`First author, year`)
+# # Delete single columns
+# data_table$`First author` <- NULL
+# data_table$`Year` <- NULL
+
+# Delete column age group and year
+data_table$`Age group`<- NULL
+data_table$Year <- NULL
+
+# Change column names
+colnames(data_table) <- gsub("Sample size","N",colnames(data_table))
+colnames(data_table) <- gsub("Accuracy_rounded","Best Acc",colnames(data_table))
+colnames(data_table) <- gsub("Responders/nonresponders","Responders/ nonresponders",colnames(data_table))
+colnames(data_table) <- gsub("Definition of treatment outcome","Definition treatment outcome",colnames(data_table))
+colnames(data_table) <- gsub("Type of functional-connectivity-based input features","Input features",colnames(data_table))
+colnames(data_table) <- gsub("Way of estimating the underlying functional connectivities","Estimating FCs",colnames(data_table))
+
+# Turn numeric into string
+data_table$N <- as.character(data_table$N)
+data_table$`Best Acc` <- as.character(data_table$`Best Acc`)
+```
+
+## Create flextable
+```{r create_flextable, results = "show"}
+# More info about settings in flextable: https://ardata-fr.github.io/flextable-book/cell-content.html
+
+# Set defaults
+set_flextable_defaults(font.family = "Arial",
+font.size = 8,
+padding.bottom = 2,
+padding.top = 2,
+padding.left = 0.5,
+paddings.right = 0.5,
+#theme_fun = "theme_apa",
+theme_fun = NULL,
+text.align = "left",
+line_spacing = 1)
+
+# Initialize flex_table
+data_table_apa <- flextable(data_table)
+
+# Set table properties
+data_table_apa <- set_table_properties(data_table_apa, width = 1, layout = "autofit")
+
+#  Save flextable to word
+margins <- page_mar(
+  bottom = 0.5,
+  top = 0.5,
+  right = 0.5,
+  left = 0.5,
+  header = 0.5,
+  footer = 0.5,
+  gutter = 0.5
+)
+sect_properties <- prop_section(
+  page_size = page_size(orient = "landscape"),
+  page_margins = margins)
+
+flextable::save_as_docx(data_table_apa, path = "plots/table_extraction.docx", pr_section = sect_properties)
+
+# Nice_table ist gut für das html
+nice_table(data_table)
+```
+
+# RQ 1: How high is the accuracy?
+## Calculate low ROB mean acc
+The mean accuracy of the best model per study is  `r round(mean(data_acc$Accuracy_rounded))`%, with a range of `r min(data_acc$Accuracy_rounded)`% - `r max(data_acc$Accuracy_rounded)`%.
+The "balanced mean accuracy" `r round(mean(data_acc$Accuracy_controlled))`%, with a range of `r min(data_acc$Accuracy_controlled)`% - `r max(data_acc$Accuracy_controlled)`%.
+
+## Plot balanced vs. unbalanced accuracy
+```{r}
+# Add column which shows whether a study had particularly high ROB/high risk of data leakage.
+studies_low_ROB <- c(data_PROBAST[data_PROBAST$`4.8 Were model overfitting and optimism in model performance accounted for?` == "Y",c("Study")])$Study
+data_acc$ROB <- ifelse(data_acc$Study %in% studies_low_ROB, "low risk of data leakage", "high risk of data leakage")
+
+# Bring data into longformat
+data_acc_reshaped_acc_control <- reshape(data = data_acc, idvar = "Study", varying = c("Accuracy_rounded","Accuracy_controlled"), v.name = "metric", times = c("Accuracy_rounded","Accuracy_controlled"), new.row.names = 1:1000, direction = "long")
+
+data_acc_reshaped_acc_control$time <- as.factor(data_acc_reshaped_acc_control$time)
+data_acc_reshaped_acc_control$time <- factor(data_acc_reshaped_acc_control$time, levels = c("Accuracy_rounded", "Accuracy_controlled"))
+
+# Plot data without risk of bias 
+acc_labels_germ <- c("berichtete Genauigkeit","für Zufallsniveau\nkontrollierte Genauigkeit")
+acc_labels_eng <- c("reported\naccuracy","balanced\naccuracy")
+plot_acc_control_violin <- ggplot(data = data_acc_reshaped_acc_control, aes(y =`metric`, x = `time`))+
+  geom_violin() +
+  geom_quasirandom(size = size_circle) +
+  stat_summary(
+    geom = "point",
+    fun.y = "mean",
+    col = "black",
+    size = size_circle,
+    shape = 24,
+    fill = "red"
+  )+
+  labs(x="", y = "Accuracy in %")+
+  scale_x_discrete(labels = acc_labels_eng)
+
+# Plot data with risk of bias
+plot_acc_control_violin_rob <- ggplot(data = data_acc_reshaped_acc_control, aes(y =`metric`, x = `time`))+
+  geom_violin() +
+  geom_quasirandom(size = size_circle-0.5, aes(colour = `ROB`)) +
+  scale_colour_manual(name = "Risk of bias", values=c("grey69","black"))+
+  stat_summary(
+    geom = "point",
+    fun.y = "mean",
+    col = "black",
+    size = size_circle -0.5,
+    shape = 24,
+    fill = "red"
+  )+
+  labs(x="", y = "Accuracy in %")+
+      theme(legend.position = "bottom")+
+  theme(legend.title=element_blank()) +
+  scale_x_discrete(labels = acc_labels_eng)+
+    guides(color = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave("plots/violin_acc_normal_and_controlled.svg",plot_acc_control_violin)
+ggsave("plots/violin_acc_normal_and_controlled_rob.svg",plot_acc_control_violin_rob, height = 4)
+
+plot_acc_control_violin_rob
+```
+
+## Plot sample size and balanced accuracy
+The mean sample size was N = `r round(mean(data_acc$Sample_size),0)`, with a range of [`r min(data_acc$Sample_size)`, `r max(data_acc$Sample_size)`].
+```{r}
+# Add column for treatment manually
+data_acc$Treatment <- c("rTMS","medication","rTMS","medication","ECT","medication","medication and psychotherapy","ECT","medication","ECT","medication","psychotherapy","psychotherapy")
+# Check whether assignment was correct
+#data.frame(data_table$Treatment,data_acc$Treatment)
+
+size_half = size_circle * 1.5
+pos_half_vert = 0.4
+pos_half_horiz_1 = 0.2
+
+plot_acc_sample_size <- ggplot(data = data_acc, aes(y =`Accuracy_controlled`, x = `Sample_size`))+
+  # geom_point(aes(color = ifelse(data_acc$Treatment == "medication and psychotherapy",NA,`Treatment`), fill = ifelse(data_acc$Treatment == "medication and psychotherapy",NA,`Treatment`)), size = 3, shape = 21)+
+    theme(text = element_text(family = "Arial"))+
+  geom_point(aes(color = `Treatment`), size = size_circle)+ #draw point for all treatments
+  geom_text(data = data_acc[data_acc$Treatment == "medication and psychotherapy",],
+            label = "\u25D7", 
+            aes(`Sample_size`, `Accuracy_controlled`,colour = "medication"),  
+            size= size_half, 
+            hjust = pos_half_horiz_1,
+            vjust = pos_half_vert,
+            family = "Lucida Sans Unicode",
+            key_glyph = draw_key_blank)+
+   geom_text(data = data_acc[data_acc$Treatment == "medication and psychotherapy",],
+             label = "\u25D6", 
+             aes(`Sample_size`, `Accuracy_controlled`,colour = "psychotherapy"),  
+             size= size_half, 
+             hjust = pos_half_horiz_1 + 0.57,
+             vjust= pos_half_vert,
+             family = "Lucida Sans Unicode",
+             key_glyph = draw_key_blank)+
+  scale_color_manual(
+    breaks = c("medication", "ECT","psychotherapy","rTMS"),
+    values = c("ECT" = col[1], "medication" = col[2], "medication and psychotherapy" = "grey","psychotherapy" = col[3], "rTMS" = col[4])
+  )+
+  geom_smooth(method = "lm", color = "black", size = 0.5)+
+  labs(y = "Balanced accuracy in %", x = "Sample size")+
+  scale_x_continuous(limits=c(15,147), breaks = c(25,50,75,100,125,150)) +
+  # theme(legend.position = c(1,1), legend.justification = c(1,1), legend.spacing.x = unit(0.01, 'cm'))+
+    theme(legend.position = "bottom")+
+  theme(legend.title=element_blank()) +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE))
+
+library(patchwork)
+plot_combined <- plot_acc_control_violin_rob + plot_acc_sample_size + plot_annotation(tag_levels = "A") + plot_layout(ncol=2)
+
+plot_acc_sample_size
+plot_combined
+ggsave("plots/plot_samplesize.svg",plot_acc_sample_size, height = 4)
+ggsave("plots/plot_combined.svg",plot_combined, height = 3.5)
+```
+
+# RQ 2.1: Which ways are used to calculate feature importance?
+## Remove studies that did not calculate feature importance
+```{r}
+data_imp_features_clean <- data_imp_features[!(is.na(data_imp_features$Features_with_high_predictive_value)),]
+```
+`r nrow(data_imp_features[!(is.na(data_imp_features$"Features_with_high_predictive_value")),])` out of 13 studies made a statement on feature importance.
+
+## Plot data
+```{r ways to measure feature importance}
+# Add new rows when two categories are chosen
+data_imp_features_clean_way <- data_imp_features_clean
+
+for (row_idx in 1:nrow(data_imp_features_clean)){
+  entry <- data_imp_features_clean_way$Way_of_measuring_predictive_value_categories[row_idx]
+  if (grepl(";",entry)){
+  categories <- strsplit(entry,"; ")[[1]]
+  # Copy row
+  data_imp_features_clean_way <- rbind(data_imp_features_clean_way,data_imp_features_clean_way[row_idx,])
+  # Replace category in old row
+   data_imp_features_clean_way$Way_of_measuring_predictive_value_categories[row_idx]<-categories[1]
+  # Replace category in new row
+   data_imp_features_clean_way$Way_of_measuring_predictive_value_categories[nrow(data_imp_features_clean_way)]<-categories[2]
+  }
+}
+
+# Plot data
+plot_measuring_importance <- ggplot2::ggplot(data = data_imp_features_clean_way,aes(x = `Way_of_measuring_predictive_value_categories`, color = `Study`))+
+  geom_bar() +
+  theme(legend.position = "none")+ 
+  xlab("")+
+  coord_flip()+
+  ggtitle("Ways to measure high predictive value")
+ggplotly(plot_measuring_importance)
+```
+
+# RQ 2b: Which features have predictive value?
+## Bring data into long-format
+```{r longformat}
+# Get column_names
+cols_tested <- colnames(data_imp_features_clean )[endsWith(colnames(data_imp_features_clean ),"_tested")]
+cols_important <- colnames(data_imp_features_clean )[endsWith(colnames(data_imp_features_clean ),"_important")]
+
+# First: Reshape _tested-columns
+data_imp_features_clean$ID = rownames(data_imp_features_clean)
+data_reshaped_ROIs_tested <- reshape(data = data_imp_features_clean,idvar = "Study", new.row.names = 1:20000,
+          varying = cols_tested, v.name = "tested", times = cols_tested, drop = cols_important, direction = "long")
+colnames(data_reshaped_ROIs_tested)[colnames(data_reshaped_ROIs_tested)=="time"] <- 'ROI'
+data_reshaped_ROIs_tested$ROI <- gsub("_tested","",data_reshaped_ROIs_tested$ROI)
+
+data_reshaped_ROIs_tested$ID <- paste(data_reshaped_ROIs_tested$`Study`,data_reshaped_ROIs_tested$ROI)
+
+# Second: Reshape important-columns
+data_reshaped_ROIs_important <- reshape(data = data_imp_features_clean , idvar = "ID",new.row.names = 1:20000,
+          varying = cols_important, v.name = "important", times = cols_important, direction = "long", drop = cols_tested)
+
+data_reshaped_ROIs_important$ROI <- gsub("_important","",data_reshaped_ROIs_important$time)
+
+data_reshaped_ROIs_important$ID <- paste(data_reshaped_ROIs_important$`Study`,data_reshaped_ROIs_important$ROI)
+
+# Merge both data sets
+data_together <- merge(data_reshaped_ROIs_tested,data_reshaped_ROIs_important)
+
+data_together$time <- gsub("_important","",data_together$time)
+colnames(data_together)[colnames(data_together)=="time"] <- 'Region'
+
+# Exclude ROIs, when they were not tested
+data_together_only_tested <- data_together[!c(data_together$tested == "n"|is.na(data_together$tested)|data_together$tested == "NA"),]
+
+# Convert to factor
+data_together_only_tested$important <- as.factor(data_together_only_tested$important)
+```
+
+## Make nice names for brain regions
+```{r }
+data_together_only_tested$Region <-
+gsub("_"," ",data_together_only_tested$Region)
+```
+
+## Create (wide) data set with absolute and relative frequencies per region
+```{r}
+## Wide Data set with absolute and relative freq per region
+freq_all <- as.data.frame(table(data_together_only_tested$Region))
+data_together_only_tested_important <- data_together_only_tested[data_together_only_tested$important=="y",]
+data_together_only_tested_nonimportant <- data_together_only_tested[data_together_only_tested$important=="n",]
+freq_important <- as.data.frame(table(data_together_only_tested_important$Region))
+colnames(freq_important) <- c("Var1","Abs_frequency")
+freq_all <- merge(freq_all,freq_important,by= "Var1")
+freq_nonimportant <- as.data.frame(table(data_together_only_tested_nonimportant$Region))
+colnames(freq_nonimportant) <- c("Var1","Freq_nonimportant")
+freq_all <- merge(freq_all,freq_nonimportant,by= "Var1")
+freq_all$Rel_frequency <- round((freq_all$Abs_frequency/freq_all$Freq)*100)
+
+# Get features with relative frequencies above 30% and order them after frequency
+dataset <- freq_all[freq_all$Rel_frequency>30, c("Var1","Rel_frequency")]
+dataset <- arrange(dataset,Rel_frequency)
+Regions_high_freq <- dataset$Var1
+
+data_together_only_tested$Region <- factor(data_together_only_tested$Region, levels = Regions_high_freq)
+```
+
+## Plot feature importance
+This plot shows whose connectivities were particularily important for the prediction of TR.
+
+## Plot absolute and relative frequencies in one barplot
+```{r RQ2}
+library(ggplot2)
+
+# Reduce data set to only high frequency regions
+data_together_only_tested_high_freq <- data_together_only_tested[data_together_only_tested$Region %in% Regions_high_freq,]
+
+plot_feat_pred_value <- ggplot2::ggplot(data = data_together_only_tested_high_freq, aes(x =`Region`, fill= `important`))+
+  geom_bar()+
+  #theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_brewer(palette = "Oranges")+
+  geom_text(aes(label = scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..])),stat = "count", position= position_stack(vjust = 0.5))+
+  xlab("")+
+  coord_flip()
+#https://stackoverflow.com/questions/55680449/ggplot-filled-barplot-with-percentage-labels
+
+# Change labels 
+scaleFUN <- function(x) x*100
+
+predvalue_legend_eng <- c("no predictive value", "predictive value")
+
+plot_feat_pred_value_2 <- ggplot(data = data_together_only_tested_high_freq, aes(x =`Region`, fill= `important`))+
+  geom_bar(aes (y = ..count../tapply(..count.., ..x.. ,sum)[..x..]))+
+  #theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_brewer(palette = "Oranges", labels = predvalue_legend_eng)+
+  scale_y_continuous(labels=scaleFUN)+
+  geom_text(stat = "count", aes(label = paste0("n=",..count..)), position = position_fill(vjust =0.5))+
+  xlab("")+
+  ylab("Relative Frequency in %")+
+  theme(legend.title=element_blank(),legend.position = "right") +
+  #theme (plot.margin=unit (c (8,5.5,5.5,5.5),units = "pt"))+
+  #scale_fill_manual()+
+  coord_flip()
+
+plot_feat_pred_value_2
+
+ggsave("plots/plot_feat_pred_value.svg",plot_feat_pred_value_2, height = 4)
+```
+
+# RQ3: Which approaches are used to reduce the number of input features?
+```{r RQ3}
+# Bring data into longformat
+cols_reduction <- colnames(data_dimreduction)[4:9]
+data_dimreduction_reshaped <- reshape(data = data_dimreduction, idvar = "Study",varying = cols_reduction, v.name = "applied", times = cols_reduction, new.row.names = 1:1000, direction = "long")
+
+# Plot for feature generation
+plot_reduction_generation <- ggplot(data = data_dimreduction_reshaped[(!(is.na(data_dimreduction_reshaped$applied))& data_dimreduction_reshaped$time %in% c("atlas-based_parcellation", "data-driven_parcellation", "theory-based_ROI-/connectivity-selection")),],aes(x = `time`, color = `Study`))+
+  geom_bar() +
+  coord_flip() +
+  xlab("")+
+  theme(legend.position = "none", plot.title = element_text(size =14))+ 
+  ggtitle("Feature generation")
+
+ggplotly(plot_reduction_generation)
+
+# Plot for feature extraction
+cols_feat_extract <- colnames(data_dimreduction)[7:9]
+
+plot_reduction_extraction <- ggplot2::ggplot(data = data_dimreduction_reshaped[(!(is.na(data_dimreduction_reshaped$applied))& data_dimreduction_reshaped$time %in% cols_feat_extract),],aes(x = `time`, color = `Study`))+
+  geom_bar() +
+  theme(legend.position = "none", plot.title = element_text(size =14))+ 
+  coord_flip() +
+  xlab("")+
+  ggtitle("Feature selection")
+ggplotly(plot_reduction_extraction)
+```
+
+# RQ4: PROBAST
+```{r plot_PROBAST}
+# Final rating columns
+cols_final_rating <- c("Final rating domain 1", "Final rating domain 2", "Final rating domain 3", "Final rating domain 4", "Final rating")
+
+data_PROBAST_plot <- data_PROBAST[c("Study",cols_final_rating)]
+
+# Bring data into long-format
+data_PROBAST_plot_long <- reshape(data = data_PROBAST_plot,idvar = "Study", new.row.names = 1:20000,varying = cols_final_rating, v.name = "ROB", times = cols_final_rating, direction = "long")
+colnames(data_PROBAST_plot_long)[colnames(data_PROBAST_plot_long)=="time"] <- 'Rating_domain'
+
+# Order and rename factor rating_domain
+PROBAST_domains_engl <- c("ROB Sample","ROB Predictors", "ROB Outcome", "ROB Analysis", "ROB Total")
+data_PROBAST_plot_long$Rating_domain <- factor(data_PROBAST_plot_long$Rating_domain, 
+                                               levels = c("Final rating domain 1", "Final rating domain 2", "Final rating domain 3", "Final rating domain 4", "Final rating"), labels = PROBAST_domains_engl)
+
+scaleFUN <- function(x) x*100
+
+# Prepare final rating domains labels to make one label bold
+breaks <- levels(data_PROBAST_plot_long$Rating_domain)
+labels <- as.expression(breaks)
+labels[[5]] <- bquote(bold(.(labels[[5]])))
+
+# Plot data
+PROBAST_legend_engl <- c("high", "low")
+plot_PROBAST <- ggplot(data = data_PROBAST_plot_long,aes(x = `Rating_domain`, fill = `ROB`))+ geom_bar(aes (alpha = Rating_domain == "ROB Gesamt", y = ..count../tapply(..count.., ..x.. ,sum)[..x..]))+
+  coord_flip()+
+  scale_fill_manual(values = c("red3","chartreuse3"), name = "Risk of bias (ROB)", labels = PROBAST_legend_engl <- c("high", "low")) +
+  scale_y_continuous(labels=scaleFUN)+
+  scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.6), guide = F)+
+  scale_x_discrete(label = labels, breaks = breaks)+
+   theme(legend.position = "top")+
+  xlab("")+
+  ylab("Relative Accuracy in %")
+
+plot_PROBAST
+ggsave("plots/plot_PROBAST.svg",plot_PROBAST, height = 4.5, width = 9)
+```
