@@ -36,6 +36,8 @@ size_circle = 2.8
 library(RColorBrewer)
 col <- brewer.pal(4, "Set1")
 ```
+# Kommentar No. 2
+
 
 # Import data
 ```{r import}
@@ -58,6 +60,8 @@ colnames(data_imp_features) <- gsub(" - ","_",colnames(data_imp_features))
 colnames(data_imp_features) <- gsub(" ","_",colnames(data_imp_features))
 colnames(data_dimreduction) <- gsub(" ","_",colnames(data_dimreduction))
 ```
+# Kommentar No. 3
+
 
 # RQ 0: Table with important information
 ## Keep only important information
